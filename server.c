@@ -118,7 +118,7 @@ void get(){
     Rio_readinitb(&rio, fd);
 
     while ((n = Rio_readlineb(&rio, buf, MAXSEND)) > 0) {
-        err = io_writen(req->connfd, buf, n);
+        err = rio_writen(req->connfd, buf, n);
         printf("%s",buf );
         if(err == 1){
         	fprintf(stderr, "Arret innatendu du client\n");
