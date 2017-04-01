@@ -4,7 +4,7 @@
 #include "csapp.h"
 #include <stdlib.h>
 #define MAX_NAME_LEN 256
-#define MAXSEND 100
+#define MAXSEND 256
 #define NB_PROC 10
 #define port 2121
 
@@ -12,20 +12,19 @@
 
 struct Request* req;
 
-
 pid_t child[NB_PROC];
 
 int main(int argc, char **argv)
 {
 	Signal(SIGINT, stop);
-	Signal(SIGCHLD, handler); 
+	Signal(SIGCHLD, handler);
     pid_t p;
     int listenfd, connfd;
     socklen_t clientlen;
     struct sockaddr_in clientaddr;
     char client_ip_string[INET_ADDRSTRLEN];
     char client_hostname[MAX_NAME_LEN];
-    
+
     clientlen = (socklen_t)sizeof(clientaddr);
 
     listenfd = Open_listenfd(port);
@@ -33,31 +32,31 @@ int main(int argc, char **argv)
         if((p=Fork())==0){
             while (1) {
                 if((connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen))>=0){
-                	
+
                     /* determine the name of the client */
                     Getnameinfo((SA *) &clientaddr, clientlen,client_hostname, MAX_NAME_LEN, 0, 0, 0);
-                    
+
                     /* determine the textual representation of the client's IP address */
                     Inet_ntop(AF_INET, &clientaddr.sin_addr, client_ip_string,INET_ADDRSTRLEN);
-                    
-                    
+
+
                     printf("server connected to %s (%s) %d\n", client_hostname,client_ip_string, getpid());
                     req = malloc(sizeof(struct Request));
                     req->connfd = connfd;
 
                     readRequest(connfd);
-                    Close(connfd);
+										Close(connfd);
                 }
             }
-    		freeRequest(req);
+    				freeRequest(req);
             exit(0);
         }
         child[i] = p;
     }
-    
+
     for(int i=0; i<NB_PROC; i++)
         waitpid(child[i], NULL, 0);
-    
+
     exit(0);
 }
 
@@ -83,16 +82,16 @@ void readRequest(){
     Rio_readinitb(&rio, req->connfd);
     n=Rio_readlineb(&rio, request, MAXLINE);
     fflush(stdout);
-    request[n-1] = '\0'; 
+    request[n-1] = '\0';
 
     sscanf(request, "%s %s %s", req->cmd, req->filename, req->content);
-	
-	printf("passé : %s\n",req->cmd );
-    stat(req->filename, &req->sbuf);
+		printf("%s\n", req->cmd);
+		stat(req->filename, &req->sbuf);
     if(!strcmp("get", req->cmd)){
     	get();
-    }else{
-    	printf("La commande %s non defini", req->cmd);
+    }else if (!strcmp("bye", req->cmd) ) {
+    	printf("fin de la connexion");
+			//Close(req->connfd);
     }
     fflush(stdout);
 }
@@ -101,10 +100,10 @@ void get(){
 	char buf[MAXSEND];
 	size_t n,err;
 	rio_t rio;
-	
+
 	/*
 	On envoie d'un coup
-	int srcfd;
+		int srcfd;
     char *srcp;
 
     srcfd = Open(req->filename, O_RDONLY, 0);
@@ -116,16 +115,15 @@ void get(){
 
     int fd = open(req->filename, O_RDONLY);
     Rio_readinitb(&rio, fd);
-
-    while ((n = Rio_readlineb(&rio, buf, MAXSEND)) > 0) {
-        err = rio_writen(req->connfd, buf, n);
-        printf("%s",buf );
-        if(err == 1){
-        	fprintf(stderr, "Arret innatendu du client\n");
-        	break;
+		while ((n = Rio_readlineb(&rio, buf, MAXSEND)) > 0) {
+				err = rio_writen(req->connfd, buf, n);
+        printf("%s",buf);
+        if(err == -1){
+	        	fprintf(stderr, "Arret innatendu du client\n");
+	        	break;
         }
     }
-    
+
 }
 
 void freeRequest(struct Request *r){
