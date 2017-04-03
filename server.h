@@ -7,12 +7,15 @@ struct Request{
 	char * cmd;
 	char * filename;
 	char * content;
+	char * host;
 	int connfd;
+	int port;
 	struct stat sbuf;
 };
-void get();
-void readRequest();
+void get(struct Request *req);
+void readRequest(struct Request *req);
 void handler(int sig);
+void debloque(int sig);
 void stop(int sig);
 void freeRequest(struct Request * r);
 

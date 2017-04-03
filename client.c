@@ -14,16 +14,22 @@ rio_t rio;
 struct Request* req;
 int main(int argc, char **argv)
 {
-    int clientfd, fd;
+    int clientfd, listenfd, fd;
     char *buf, *host, *hidefile;
     struct timeval start, end;
     size_t len=0, n=0;
+    socklen_t clientlen;
+    struct sockaddr_in clientaddr;
+    char client_ip_string[INET_ADDRSTRLEN];
+    char client_hostname[MAX_NAME_LEN];
 
     if (argc != 2) {
         fprintf(stderr, "usage: %s <host>\n", argv[0]);
         exit(0);
     }
     host = argv[1];
+
+
 
     clientfd = Open_clientfd(host, port);
     req = malloc(sizeof(struct Request));
@@ -44,6 +50,16 @@ int main(int argc, char **argv)
       if(!strcmp(req->cmd, "get")){
           gettimeofday(&start, NULL);
           Rio_writen(req->clientfd, buf, strlen(buf));
+          Close(clientfd);
+          listenfd = Open_listenfd(3000);
+          while((req->clientfd = Accept(listenfd, (SA *)&clientaddr, &clientlen)) < 0);
+
+          /* determine the name of the client */
+          Getnameinfo((SA *) &clientaddr, clientlen,client_hostname, MAX_NAME_LEN, 0, 0, 0);
+
+          /* determine the textual representation of the client's IP address */
+          Inet_ntop(AF_INET, &clientaddr.sin_addr, client_ip_string,INET_ADDRSTRLEN);
+
           hidefile = (char*)malloc(sizeof(char)*MAX_NAME_LEN);
           hidefile[0]='T';
           strcat(hidefile, req->filename);
@@ -63,7 +79,7 @@ int main(int argc, char **argv)
               double temps = ((end.tv_sec+(double)end.tv_usec/1000000)-(start.tv_sec+(double)start.tv_usec/1000000));
               printf("%lu bytes received in %f sec (%f bytes / sec) \n",len, temps, ((double)(len/temps)));
               if(len == 0){
-                  printf("Le téléchargement  echoue\n");
+                  printf("Le téléchargement a echoue\n");
                   remove(req->filename);
               }
               remove(hidefile);
@@ -71,7 +87,6 @@ int main(int argc, char **argv)
             fd = open(strcat(req->filename, "1"), O_WRONLY);
             stat(req->filename,&req->sbuf);
             int dejaLu = req->sbuf.st_size;
-            //lseek(fd, dejaLu, SEEK_CUR);
             free (buf);
             buf = (char*)malloc(sizeof(char)*MAXSEND);
             while((n=Rio_readn(req->clientfd, buf, MAXSEND)) > 0) {
@@ -89,7 +104,6 @@ int main(int argc, char **argv)
                   else
                       lseek(fd, n-tmp, SEEK_CUR);
                 }
-                //dejaLu-=n;
             }
             gettimeofday(&end, NULL);
             double temps = ((end.tv_sec+(double)end.tv_usec/1000000)-(start.tv_sec+(double)start.tv_usec/1000000));
@@ -101,7 +115,7 @@ int main(int argc, char **argv)
           printf("fin de la connexion\n");
           exit(0);
       }else{
-          printf("Commance %s inconnue\n", req->cmd);
+          printf("Commande %s inconnue\n", req->cmd);
       }
     }
 
