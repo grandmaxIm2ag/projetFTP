@@ -10,6 +10,7 @@ struct Request{
 	char * host;
 	int connfd;
 	int port;
+	int fini;
 	struct stat sbuf;
 };
 void get(struct Request *req);

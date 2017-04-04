@@ -11,4 +11,5 @@ struct Request{
 	struct stat sbuf;
 };
 
+void freeRequest(struct Request* r/* arguments */);
 #endif

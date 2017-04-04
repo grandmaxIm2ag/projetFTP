@@ -5,12 +5,11 @@
 #include <stdlib.h>
 #define MAX_NAME_LEN 256
 #define MAXSEND 256
-#define NB_PROC 10
+#define NB_PROC 1
 
 
 
 struct Request* req;
-int fini=0;
 pid_t child[NB_PROC];
 
 int main(int argc, char **argv)
@@ -50,15 +49,15 @@ int main(int argc, char **argv)
                     req = malloc(sizeof(struct Request));
                     req->connfd = connfd;
 
-										fini=0;
+										req->fini=0;
 
-										while(!fini){
+										while(!req->fini){
                     	readRequest(req); //On lit la requete du client
 										}
-										//Close(connfd);
+										printf("fini\n");
                 }
+		    				freeRequest(req);
             }
-    				freeRequest(req);
             exit(0);
         }
         child[i] = p;
@@ -97,38 +96,41 @@ void readRequest(struct Request *req){
     fflush(stdout);
     request[n-1] = '\0';
 
-    sscanf(request, "%s %s %s", req->cmd, req->filename, req->content);
-		//On recupere la requte , et remplis notre Request
+		sscanf(request, "%s %s %s", req->cmd, req->filename, req->content);
+		//On recupere la requete , et remplis notre Request
 		stat(req->filename, &req->sbuf);
     if(!strcmp("get", req->cmd)){
-    	get(req);
+			int l = req->sbuf.st_size;
+			rio_writen(req->connfd, &l, sizeof(int));
+			get(req);
     }else if (!strcmp("bye", req->cmd) ) {
-    	printf("fin de la connexion");
+    	printf("fin de la connexion\n");
 			Close(req->connfd);
-			fini=1;
-    }
+			req->fini=1;
+    }else;
     fflush(stdout);
 }
 
 void get(struct Request *req){
 	char buf[MAXSEND];
-	size_t n,err;
+	size_t n = 0,err;
 	rio_t rio;
-
 	int fd = open(req->filename, O_RDONLY);
 	Rio_readinitb(&rio, fd);
 	/*
-Tant qu'on a ecris, on continue d'ecrire
+	Tant qu'on a ecris, on continue d'ecrire
 	*/
-	while ((n = Rio_readlineb(&rio, buf, MAXSEND)) > 0) {
-			printf("%s", buf);
+	do {
+			n = rio_readn(fd, buf, MAXSEND);
 			err = rio_writen(req->connfd, buf, n);
 	    if(err == -1){//On stopper si le client s'arrete
-					fini=1;
+					req->fini=1;
 		     	fprintf(stderr, "Arret innatendu du client\n");
 		     	break;
 	    }
-	}
+	}while (n>0);
+
+	close(fd);
 
 }
 

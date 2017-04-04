@@ -4,7 +4,7 @@
 #include "csapp.h"
 #include <stdlib.h>
 #define MAX_NAME_LEN 256
-#define MAXSEND 256
+#define MAXSEND 5
 #define NB_PROC 1
 #define port 2121
 
@@ -43,15 +43,14 @@ int main(int argc, char **argv)
           /* determine the textual representation of the client's IP address */
           Inet_ntop(AF_INET, &clientaddr.sin_addr, client_ip_string,INET_ADDRSTRLEN);
 
-          getsockname(connfd, (SA *)&clientaddr,&clientlen);
 
           printf("server connected to %s (%s) %d\n", client_hostname,client_ip_string, getpid());
 
 					Rio_readinitb(&rio, connfd);
 					int p = next();
-					Rio_writen(connfd, &p, sizeof(p));
+					Rio_writen(connfd, &p, sizeof(p));//Envoie au client le numero de port de l'esclve traitant
 
-          Close(connfd);
+          Close(connfd);//Ferme la connexion avec le client
       }
     }
 

@@ -10,14 +10,13 @@
 #define MAX_NAME_LEN 256
 #define MAXSEND 256
 
-rio_t rio;
 struct Request* req;
 int main(int argc, char **argv)
 {
     int clientfd, fd, port2;
     char *buf, *host, *hidefile;
     struct timeval start, end;
-    size_t len=0, n=0;
+    size_t len=0, n=0; int l=0;
 
     if (argc != 2) {
         fprintf(stderr, "usage: %s <host>\n", argv[0]);
@@ -37,7 +36,6 @@ int main(int argc, char **argv)
     req = malloc(sizeof(struct Request));//On alloue de la memoire pour la Request
     req->clientfd = clientfd;//On recupere le descripteur du socket
 
-    Rio_readinitb(&rio, clientfd);//On initialise Rio
 
     while (1) {
       printf("Tapez votre requete : \n");
@@ -49,14 +47,17 @@ int main(int argc, char **argv)
       sscanf(buf, "%s %s %s", req->cmd, req->filename, req->content);//On recupere la requette tapée par le client
 
       /*
-      Pour savoir si on a déjà tenté de télécharger un fichier, on créer un fichier temporaire au début du téléchargeme,t
-      Lorsque le téléchargement est terminé on le supprime
-      Si il existe un fichier temporaire associé au fichier que lon veut télécharger
+        Pour savoir si on a déjà tenté de télécharger un fichier, on créer un fichier temporaire au début du téléchargeme,t
+        Lorsque le téléchargement est terminé on le supprime
+        Si il existe un fichier temporaire associé au fichier que lon veut télécharger
         cela signifie qu'on a déjà essayer de le télécharger, on télécharge uniquement les données manquante
       */
       if(!strcmp(req->cmd, "get")){
+
           gettimeofday(&start, NULL);
-          Rio_writen(req->clientfd, buf, strlen(buf));//On envoie la requete au serveur
+          rio_writen(req->clientfd, buf, strlen(buf));//On envoie la requete au serveur
+          rio_readn(req->clientfd, &l, sizeof(int));
+          printf("%d\n",l);
           hidefile = (char*)malloc(sizeof(char)*MAX_NAME_LEN);
           hidefile[0]='.';
           strcat(hidefile, req->filename);//On créer le nom du fichier temporaire
@@ -65,27 +66,24 @@ int main(int argc, char **argv)
               fd = open(strcat(req->filename, "1"), O_RDWR | O_CREAT, 0666);//On creer un fichier pour le téléchargement
               free (buf);
               buf = (char*)malloc(sizeof(char)*MAXSEND);
-              while((n=Rio_readn(req->clientfd, buf, MAXSEND)) > 0) {//Tant qu'on recoit des données, on les ecrit dans le fichier
-                  printf("%d\n", n);
-                  if(n==0){
-                    printf("Téléchargement fini\n");
-                    break;
-                  }
+              int send=MAXSEND;
+              if(l<MAXSEND)
+                send=l;
+              while((n=rio_readn(req->clientfd,buf, send)) > 0 && l>0) {//Tant qu'on recoit des données, on les ecrit dans le fichier
+                  if (n>send)
+                    n=send;
                   rio_writen(fd, buf, n);
                   len+=n;
-                  free(buf);
-                  buf = (char*) malloc(sizeof(char)*MAXSEND);
-                  if(n==0){
-                    printf("Téléchargement fini\n");
-                    break;
-                  }
+                  l-=n;
+                  if(l<MAXSEND)
+                    send=l;
               }
-              Close(fd);
+              close(fd);
               gettimeofday(&end, NULL);
               double temps = ((end.tv_sec+(double)end.tv_usec/1000000)-(start.tv_sec+(double)start.tv_usec/1000000));
               printf("%lu bytes received in %f sec (%f bytes / sec) \n",len, temps, ((double)(len/temps)));//On affiche le statistiques
               if(len == 0){
-                  printf("Le téléchargement a echoée\n");
+                  printf("Le téléchargement a echouée\n");
                   remove(req->filename);
               }
               remove(hidefile);
@@ -95,20 +93,16 @@ int main(int argc, char **argv)
             int dejaLu = req->sbuf.st_size;//On recupere la taille des données déjà téléchargé
             free (buf);
             buf = (char*)malloc(sizeof(char)*MAXSEND);
-            while((n=Rio_readn(req->clientfd, buf, MAXSEND)) > 0) {
-                printf("%d\n", n);
-                if(n==0){
-                  printf("Téléchargement fini\n");
-                  break;
-                }
+            int send = MAXSEND;
+            if(l<MAXSEND)
+              send=l;
+            while((n=Rio_readn(req->clientfd, buf, send)) > 0) {
                 int tmp = dejaLu;
                 dejaLu-=n;
-                printf("%d\n", dejaLu);
                 if(dejaLu <= 0){//On ecrit si ce sont des données non téléchargées
                   rio_writen(fd, buf, n);
                   free(buf);
                   buf = (char*) malloc(sizeof(char)*MAXSEND);
-                  printf("%s", buf);
                   len+=n;
                 }else{//Sinon on déplace le curseur
                   if(n<tmp)
@@ -116,22 +110,40 @@ int main(int argc, char **argv)
                   else
                       lseek(fd, n-tmp, SEEK_CUR);
                 }
+                l-=n;
+                if(l<MAXSEND)
+                  send=l;
 
             }
+            close(fd);
             gettimeofday(&end, NULL);
             double temps = ((end.tv_sec+(double)end.tv_usec/1000000)-(start.tv_sec+(double)start.tv_usec/1000000));
             printf("%lu bytes received in %f sec (%f bytes / sec) \n",len, temps, ((double)(len/temps)));
             remove(hidefile);
           }
+
       }else if(!strcmp(req->cmd, "bye")){//On ferme la connexion
           Rio_writen(req->clientfd, req->cmd, strlen(req->cmd));
           printf("fin de la connexion\n");
           exit(0);
-      }else{//On stoppe la connection
+      }else if(!strcmp("ls", req->cmd) || !strcmp("pwd", req->cmd)){
+        buf = (char*)malloc(sizeof(char)*MAXSEND);
+        while((n=rio_readn(req->clientfd,buf, MAXSEND)) > 0) {//Tant qu'on recoit des données, on les ecrit dans le fichier
+            printf("%s",buf);
+            free(buf);
+            buf = (char*) malloc(sizeof(char)*MAXSEND);
+        }
+  		}else if(!strcmp("cd", req->cmd));
+      else{
           printf("Commande %s inconnue\n", req->cmd);
-          printf("fin de la connexion\n");
-          exit(0);
       }
     }
 
+}
+
+void freeRequest(struct Request *r){
+	free(r->cmd);
+	free(r->filename);
+	free(r->content);
+	free(r);
 }
