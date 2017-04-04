@@ -64,9 +64,11 @@
 \tableofcontents
 
 \chapter*{Introduction}
-
+%Intro projet 
+	Durant ce projet, nous avons du impl\'ementer un serveur de fichier, inspir\'e des serveurs FTP. Nous sommes all\'es d'un serveur avec une fonction simple (:la r\'ecuperation de fichiers \`a distance) vers un serveur permettant des actions plus complexes et, de ce fait, plus performant.\\
     \chapter{Serveur FTP concurrent}
       \section{Objectif de la r\'ealisation}
+	Dans cette partie, nous avons du impl\'ementer la fonction simple du serveur : la r\'ecuperation de fichier \`a distance en donnant le nom du fichier \'a partir du client. Le serveur cr\'e\'e un nouveau fichier sur lequel, \`a l'aide d'un buffer, il copie le contenu du premier fichier. Ce nouveau fichier est sauvegard\'e a l'emplacement courant du client, sous le nom "nomdupremier fichier1"\\
       \section{Code source comment\'e}
       \subsection{client.c}
       \begin{lstlisting}
@@ -99,7 +101,7 @@ int main(int argc, char **argv)
     req->filename = (char*)malloc(sizeof(char)*MAXLINE);
     req->cmd = (char*)malloc(sizeof(char)*MAXLINE);
     req->content = (char*)malloc(sizeof(char)*MAXLINE);
-    sscanf(buf, "%s %s %s", req->cmd, req->filename, req->content);//On recupere la requette tapée par le client
+    sscanf(buf, "%s %s %s", req->cmd, req->filename, req->content);//On recupere la requette tapee par le client
 
     if(!strcmp(req->cmd, "get")){
       gettimeofday(&start, NULL);
@@ -107,7 +109,7 @@ int main(int argc, char **argv)
       fd = open(strcat(req->filename, "1"), O_RDWR | O_CREAT, 0666);//On creer un fichier pour le téléchargement
       free (buf);
       buf = (char*)malloc(sizeof(char)*MAXSEND);
-      while((n=Rio_readn(req->clientfd, buf, MAXSEND)) > 0) {//Tant qu'on recoit des données, on les ecrit dans le fichier
+      while((n=Rio_readn(req->clientfd, buf, MAXSEND)) > 0) {//Tant qu'on recoit des donnees, on les ecrit dans le fichier
         rio_writen(fd, buf, n);
         len+=n;
         free(buf);
@@ -116,7 +118,7 @@ int main(int argc, char **argv)
       Close(fd);
       gettimeofday(&end, NULL);
       double temps = ((end.tv_sec+(double)end.tv_usec/1000000)-(start.tv_sec+(double)start.tv_usec/1000000));
-      printf("%lu bytes received in %f sec (%f bytes / sec) \n",len, temps, ((double)(len/temps)));//On affiche le statistiques
+      printf("%lu bytes received in %f sec (%f bytes / sec) \n",len, temps, ((double)(len/temps)));//On affiche les statistiques
       if(len == 0){
         printf("Le téléchargement a echoée\n");
         remove(req->filename);
@@ -153,7 +155,7 @@ int main(int argc, char **argv)
               if((p=Fork())==0){
                   while (1) {
                       if((connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen))>=0){
-      									//On accept la connexion entrnte
+      									//On accept la connexion entrante
 
                           /* determine the name of the client */
                           Getnameinfo((SA *) &clientaddr, clientlen,client_hostname, MAX_NAME_LEN, 0, 0, 0);
@@ -311,6 +313,7 @@ clean:
 
     \chapter{D\'ecoupage du fichier}
       \section{Objectif de la r\'ealisation}
+	Dans cette partie, nous avons du ameliorer le serveur afin de ne pas envoyer le fichier en une seule fois, mais en plusieurs paquets. Cela permet de ne pas surcharger la m\'emoire si un fichier de grande taille est transfer\'e. Pour cela on utilise une boucle qui envoie a chaque fois MAXSEND (maximum d'octets envoy\'es) octets au client.\\
       \section{Code source comment\'e}
 \subsection{server.c}
 Seul la fonction get de server.c a \'et\'e modifi\'ee
@@ -328,7 +331,7 @@ void get(struct equest *req){
   	*/
   	while ((n = Rio_readlineb(&rio, buf, MAXSEND)) > 0) {
   			err = rio_writen(req->connfd, buf, n);
-  	    if(err == -1){//On stopper si le client s'arrete
+  	    if(err == -1){//On stoppe si le client s'arrete
   		     	fprintf(stderr, "Arret innatendu du client\n");
   		     	break;
   	    }
@@ -391,30 +394,26 @@ test_pipe.c
 \end{lstlisting}
 
 
-    \chapter{Gestion simple des pannes coy\'e client}
+    \chapter{Gestion simple des pannes cot\'e client}
       \section{Objectif de la r\'ealisation}
+	Dans cette partie, nous devons g\`erer les pannes du client, c'est-a-dire le comportement du serveur au cas o\`u le client s'arr\^eterais durant le transfert. Un fichier temporaire est cr\'e\'e au début du processus et lorsque ce dernier est termin\'e le fichier est supprim\'e. Il n'est pas supprim\'e si le processus n'a pas finit. Le client v\'erifie, a l'appel du transfert, si un tel fichier temporaire existe. Si c'est le cas cela signifie que le serveur a d\'ej\`a commenc\'e un transfert mais que celui ci a \'etait arr\^et\'e avant sa terminaison. Le client r\'ecup\`e alors ce fichier temporaire et sait quelles donn\'ees manquantes il lui reste a t\'el\'echarger. \\
       \section{Code source comment\'e}
       Seul le fichier server.c a \'et\'e modifi\'e
             \subsection{client.c}
             \begin{lstlisting}
-/*
-Pour savoir si on a déjà tenté de télécharger un fichier, on créer un fichier temporaire au début du téléchargeme,t
-Lorsque le téléchargement est terminé on le supprime
-Si il existe un fichier temporaire associé au fichier que lon veut télécharger
-cela signifie qu'on a déjà essayer de le télécharger, on télécharge uniquement les données manquante
-*/
+
 if(!strcmp(req->cmd, "get")){
   gettimeofday(&start, NULL);
   Rio_writen(req->clientfd, buf, strlen(buf));//On envoie la requete au serveur
   hidefile = (char*)malloc(sizeof(char)*MAX_NAME_LEN);
   hidefile[0]='T';
-  strcat(hidefile, req->filename);//On créer le nom du fichier temporaire
+  strcat(hidefile, req->filename);//On creer le nom du fichier temporaire
   if(stat(hidefile,&req->sbuf) != 0){//Si le fichier temporaire n'existe pas
-    open(hidefile, O_RDWR | O_CREAT, 0666);//On le créer
-    fd = open(strcat(req->filename, "1"), O_RDWR | O_CREAT, 0666);//On creer un fichier pour le téléchargement
+    open(hidefile, O_RDWR | O_CREAT, 0666);//On le cree
+    fd = open(strcat(req->filename, "1"), O_RDWR | O_CREAT, 0666);//On cree un fichier pour le téléchargement
     free (buf);
     buf = (char*)malloc(sizeof(char)*MAXSEND);
-    while((n=Rio_readn(req->clientfd, buf, MAXSEND)) > 0) {//Tant qu'on recoit des données, on les ecrit dans le fichier
+    while((n=Rio_readn(req->clientfd, buf, MAXSEND)) > 0) {//Tant qu'on recoit des donnees, on les ecrit dans le fichier
       rio_writen(fd, buf, n);
       len+=n;
       free(buf);
@@ -423,22 +422,22 @@ if(!strcmp(req->cmd, "get")){
     Close(fd);
     gettimeofday(&end, NULL);
     double temps = ((end.tv_sec+(double)end.tv_usec/1000000)-(start.tv_sec+(double)start.tv_usec/1000000));
-    printf("%lu bytes received in %f sec (%f bytes / sec) \n",len, temps, ((double)(len/temps)));//On affiche le statistiques
+    printf("%lu bytes received in %f sec (%f bytes / sec) \n",len, temps, ((double)(len/temps)));//On affiche les statistiques
       if(len == 0){
-      printf("Le téléchargement a echoée\n");
+      printf("Le téléchargement a echoue\n");
       remove(req->filename);
     }
     remove(hidefile);
   }else{//Si le fichier temporaire existe
     fd = open(strcat(req->filename, "1"), O_WRONLY);
     stat(req->filename,&req->sbuf);
-    int dejaLu = req->sbuf.st_size;//On recupere la taille des données déjà téléchargé
+    int dejaLu = req->sbuf.st_size;//On recupere la taille des donnees deja telechargees
     free (buf);
     buf = (char*)malloc(sizeof(char)*MAXSEND);
     while((n=Rio_readn(req->clientfd, buf, MAXSEND)) > 0) {
       int tmp = dejaLu;
       dejaLu-=n;
-      if(dejaLu <= 0){//On ecrit si ce sont des données non téléchargées
+      if(dejaLu <= 0){//On ecrit si ce sont des donnees non téléchargées
       rio_writen(fd, buf, n);
       free(buf);
       buf = (char*) malloc(sizeof(char)*MAXSEND);
@@ -459,7 +458,7 @@ if(!strcmp(req->cmd, "get")){
     Rio_writen(req->clientfd, req->cmd, strlen(req->cmd));
     printf("fin de la connexion\n");
     exit(0);
-  }else{//On stoppe la connection
+  }else{//On stop la connexion
     printf("Commande %s inconnue\n", req->cmd);
     printf("fin de la connexion\n");
     exit(0);
@@ -504,6 +503,7 @@ test
 
     \chapter{Serveur FTP avec \'equilibrage des charges}
       \section{Objectif de la r\'ealisation}
+	Dans cette partie, nous avons ajout\'e un repetisseur de charge. Il sert a partager les differentes requ\^etes des clients entre plusieurs serveurs dis "esclaves". Cette repartission est g\`er\'ee par un serveur "maitre" qui re\c coit toutes les requ\^etes avant de les envoyer aux esclaves.
       \section{Code source comment\'e}
       \subsection{master.c}
       \begin{lstlisting}
@@ -609,23 +609,27 @@ test
 \end{lstlisting}
     \chapter{Plusieurs demandes de fichiers par connexions}
       \section{Objectif de la r\'ealisation}
+	Dans cette partie, nous avons modifi\'e le serveur afin qu'il g\`ere differentes requ\^etes d'un client sans fermer la connexion entre chacun d'elle. En d'autres termes il peut ainsi les g\`erer les unes apr\'es les autres sans avoir a se reconnecter. La fermeture de connexion se fait via le client avec une commande "bye".
       \section{Code source comment\'e}
       \section{Tests}
 
-      \chapter{Commandes ps, pwd et cd}
-        \section{Objectif de la r\'ealisation}
-        \section{Code source comment\'e}
-        \section{Tests}
+    \chapter{Commandes ls, pwd et cd}
+      \section{Objectif de la r\'ealisation}
+	Dans cette partie, nous avons ajout\'e les commandes ls (permettant d'afficher le contenu du r\'epertoir courant du serveur FTP), pwd (permettant d'afficher le chemin courant) et cd (permettant de changer le r\'epertoir courant du serveur FTP). \\
+      \section{Code source comment\'e}
+      \section{Tests}
 
-        \chapter{Commande mkdir, rm, rmm -r et put}
-          \section{Objectif de la r\'ealisation}
-          \section{Code source comment\'e}
-          \section{Tests}
+    \chapter{Commande mkdir, rm, rm -r et put}
+      \section{Objectif de la r\'ealisation}
+	Dans cette partie, nous avons ajout\'e d'autres commandes concernant la gestion des fichiers pour enrichir notre serveur FTP. Ces commandes sont les commandes mkdir, rm, rm-r et put permettant respectivement de cr\'eer un dossier sur le serveur, supprimer un fichier sur le serveur, supprimer un dossier sur le serveur et t\'el\'everser un fichier). Ces modifications se repercutent sur les autres serveurs esclaves si le client fait ces requ\^etes.
+      \section{Code source comment\'e}
+      \section{Tests}
 
-          \chapter{Autentifcation}
-            \section{Objectif de la r\'ealisation}
-            \section{Code source comment\'e}
-            \section{Tests}
+    \chapter{Autentifcation}
+      \section{Objectif de la r\'ealisation}
+	Dans cette partie, nous avons mis en place un systeme d'authentification afin de prot\'eger les fichiers g\`er\'es par le serveur. Pour cela, nous avons mis en place un mot de passe et un login, faisant echouer la connexion au serveur si erron\'es.
+      \section{Code source comment\'e}
+      \section{Tests}
 
 
 
