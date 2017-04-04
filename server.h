@@ -20,5 +20,6 @@ void debloque(int sig);
 void stop(int sig);
 void freeRequest(struct Request * r);
 
+int auth(char * login);
 
 #endif

@@ -14,7 +14,7 @@ struct Request* req;
 int main(int argc, char **argv)
 {
     int clientfd, fd, port2;
-    char *buf, *host, *hidefile;
+    char *buf, *host, *hidefile, login[MAXLINE], password[32];
     struct timeval start, end;
     size_t len=0, n=0; int l=0;
 
@@ -27,7 +27,21 @@ int main(int argc, char **argv)
     clientfd = Open_clientfd(host, port);//On demande la connexion au serveur maitre
     printf("client connected to server %s\n", host);
 
+
+    printf("login : "); scanf("%s",login);
+    printf("Password : "); scanf("%s", password);
+
+    strcat(login, "::");
+    strcat(login, password);
+
+    int e = rio_writen(clientfd, login, MAXLINE);//On tente de se connecer
+
     Rio_readn(clientfd, &port2, sizeof(int)); //On recupert le port du serveur esclave
+
+    if(port2 == -1){
+        fprintf(stderr, "L'authentification a echoue\n");
+        exit(0);
+    }
 
     printf("Vous aller être redirigé vers l'esclave %d\n", port2);
 
@@ -45,6 +59,7 @@ int main(int argc, char **argv)
       req->cmd = (char*)malloc(sizeof(char)*MAXLINE);
       req->content = (char*)malloc(sizeof(char)*MAXLINE);
       sscanf(buf, "%s %s %s", req->cmd, req->filename, req->content);//On recupere la requette tapée par le client
+      rio_writen(req->clientfd, buf, strlen(buf));//On envoie la requete au serveur
 
       /*
         Pour savoir si on a déjà tenté de télécharger un fichier, on créer un fichier temporaire au début du téléchargeme,t
@@ -53,9 +68,7 @@ int main(int argc, char **argv)
         cela signifie qu'on a déjà essayer de le télécharger, on télécharge uniquement les données manquante
       */
       if(!strcmp(req->cmd, "get")){
-
           gettimeofday(&start, NULL);
-          rio_writen(req->clientfd, buf, strlen(buf));//On envoie la requete au serveur
           rio_readn(req->clientfd, &l, sizeof(int));
           printf("%d\n",l);
           hidefile = (char*)malloc(sizeof(char)*MAX_NAME_LEN);
@@ -127,11 +140,19 @@ int main(int argc, char **argv)
           printf("fin de la connexion\n");
           exit(0);
       }else if(!strcmp("ls", req->cmd) || !strcmp("pwd", req->cmd)){
+        int send=MAXSEND;
         buf = (char*)malloc(sizeof(char)*MAXSEND);
-        while((n=rio_readn(req->clientfd,buf, MAXSEND)) > 0) {//Tant qu'on recoit des données, on les ecrit dans le fichier
-            printf("%s",buf);
-            free(buf);
-            buf = (char*) malloc(sizeof(char)*MAXSEND);
+        rio_readn(req->clientfd, &l, sizeof(int));
+        if(l<MAXSEND)
+          send=l;
+        while((n=rio_readn(req->clientfd,buf, send)) > 0 && l>0) {//Tant qu'on recoit des données, on les ecrit dans le fichier
+            if (n>send)
+              n=send;
+            fflush(stdout);
+            printf("%s\n", buf);
+            l-=n;
+            if(l<MAXSEND)
+              send=l;
         }
   		}else if(!strcmp("cd", req->cmd));
       else{

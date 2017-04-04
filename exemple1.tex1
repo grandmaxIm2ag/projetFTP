@@ -1,0 +1,18 @@
+\documentclass{report}
+\usepackage[latin1]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[francais]{babel}
+\begin{document}
+\part{Partie}
+\chapter{premier chapitre}
+\chapter{second chapitre}
+\chapter{troisième chapitre}
+\chapter{quatrième chapire}
+\chapter{cinquième chapitre}
+\chapter{sixième chapitre}
+\appendix
+\chapter{Un schéma}
+% Pas besoin de changer de commande pour transformer un chapitre en annexe grâce à appendix
+\chapter{Un article annexe}
+\chapter{Un canard}
+\end{document}

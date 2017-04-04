@@ -103,7 +103,69 @@ void readRequest(struct Request *req){
 			int l = req->sbuf.st_size;
 			rio_writen(req->connfd, &l, sizeof(int));
 			get(req);
-    }else if (!strcmp("bye", req->cmd) ) {
+    }else if (!strcmp("ls", req->cmd)){
+				char* args[1];
+				args[0] = "ls";
+				int c;
+				int fd = open(".log", O_RDWR | O_CREAT, 0666);
+				if((c=Fork())==0){
+						close(1);
+						dup(fd);
+						execvp(args[0], args);
+						exit(0);
+				}
+				close(fd);
+				waitpid(c, NULL, 0);
+				memcpy(req->filename, ".log", 4);
+				stat(req->filename, &req->sbuf);
+				int l = req->sbuf.st_size;
+				rio_writen(req->connfd, &l, sizeof(int));
+				printf("%s\n", req->filename);
+				get(req);
+				remove(".log");
+		} else if (!strcmp("ls", req->cmd)){
+				char* args[1];
+				args[0] = "ls";
+				int c;
+				int fd = open(".log", O_RDWR | O_CREAT, 0666);
+				if((c=Fork())==0){
+						close(1);
+						dup(fd);
+						execvp(args[0], args);
+						exit(0);
+				}
+				close(fd);
+				waitpid(c, NULL, 0);
+				memcpy(req->filename, ".log", 4);
+				stat(req->filename, &req->sbuf);
+				int l = req->sbuf.st_size;
+				rio_writen(req->connfd, &l, sizeof(int));
+				printf("%s\n", req->filename);
+				get(req);
+				remove(".log");
+		}else if (!strcmp("pwd", req->cmd)){
+				char* args[1];
+				args[0] = "pwd";
+				int c;
+				int fd = open(".log", O_RDWR | O_CREAT, 0666);
+				if((c=Fork())==0){
+						close(1);
+						dup(fd);
+						execvp(args[0], args);
+						exit(0);
+				}
+				close(fd);
+				waitpid(c, NULL, 0);
+				memcpy(req->filename, ".log", 4);
+				stat(req->filename, &req->sbuf);
+				int l = req->sbuf.st_size;
+				rio_writen(req->connfd, &l, sizeof(int));
+				printf("%s\n", req->filename);
+				get(req);
+				remove(".log");
+		}else if (!strcmp("cd", req->cmd)){
+				chdir(req->filename);//On se deplace dans req->filename (qui est ici un repertoire et non pas un fichier)
+		}else if (!strcmp("bye", req->cmd) ) {
     	printf("fin de la connexion\n");
 			Close(req->connfd);
 			req->fini=1;

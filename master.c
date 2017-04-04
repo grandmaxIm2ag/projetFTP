@@ -24,7 +24,7 @@ int main(int argc, char **argv)
     socklen_t clientlen;
     struct sockaddr_in clientaddr;
     char client_ip_string[INET_ADDRSTRLEN];
-    char client_hostname[MAX_NAME_LEN];
+    char client_hostname[MAX_NAME_LEN], login[MAXLINE];
 		rio_t rio;
 
     clientlen = (socklen_t)sizeof(clientaddr);
@@ -46,13 +46,46 @@ int main(int argc, char **argv)
 
           printf("server connected to %s (%s) %d\n", client_hostname,client_ip_string, getpid());
 
+
 					Rio_readinitb(&rio, connfd);
-					int p = next();
-					Rio_writen(connfd, &p, sizeof(p));//Envoie au client le numero de port de l'esclve traitant
+
+					size_t n = Rio_readlineb(&rio, login, MAXLINE);
+
+					login[n-1]='\0';
+					int b = auth(login);
+
+					int p;
+					if(b)
+						 p = next();
+					else
+						p= -1;
+
+					Rio_writen(connfd, &p, sizeof(p));//Envoie au client le numero de port de l'esclave traitant
 
           Close(connfd);//Ferme la connexion avec le client
       }
     }
 
     exit(0);
+}
+
+int auth(char * login){
+	int b=0;
+	char buf[MAXLINE];
+
+	int fd = open(".login", O_RDONLY);
+	rio_t rio;
+	Rio_readinitb(&rio, fd);
+
+	size_t n =0;
+
+	while((n = Rio_readlineb(&rio, buf, MAXLINE))>0 && !b){
+			buf[n-1]='\0';
+			if(!strcmp(buf, login)){
+					b=1;
+					break;
+			}
+	}
+
+	return b;
 }
