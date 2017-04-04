@@ -66,11 +66,6 @@ int main(int argc, char **argv)
               free (buf);
               buf = (char*)malloc(sizeof(char)*MAXSEND);
               while((n=Rio_readn(req->clientfd, buf, MAXSEND)) > 0) {//Tant qu'on recoit des données, on les ecrit dans le fichier
-                  printf("%d\n", n);
-                  if(n==0){
-                    printf("Téléchargement fini\n");
-                    break;
-                  }
                   rio_writen(fd, buf, n);
                   len+=n;
                   free(buf);
@@ -96,7 +91,6 @@ int main(int argc, char **argv)
             free (buf);
             buf = (char*)malloc(sizeof(char)*MAXSEND);
             while((n=Rio_readn(req->clientfd, buf, MAXSEND)) > 0) {
-                printf("%d\n", n);
                 if(n==0){
                   printf("Téléchargement fini\n");
                   break;
@@ -108,7 +102,6 @@ int main(int argc, char **argv)
                   rio_writen(fd, buf, n);
                   free(buf);
                   buf = (char*) malloc(sizeof(char)*MAXSEND);
-                  printf("%s", buf);
                   len+=n;
                 }else{//Sinon on déplace le curseur
                   if(n<tmp)
@@ -130,8 +123,4 @@ int main(int argc, char **argv)
       }else{//On stoppe la connection
           printf("Commande %s inconnue\n", req->cmd);
           printf("fin de la connexion\n");
-          exit(0);
-      }
-    }
-
-}
+      

@@ -10,7 +10,7 @@
 
 
 struct Request* req;
-
+int fini=0;
 pid_t child[NB_PROC];
 
 int main(int argc, char **argv)
@@ -18,41 +18,44 @@ int main(int argc, char **argv)
 	Signal(SIGINT, stop);
 	Signal(SIGCHLD, handler);
     pid_t p;
-    int listenfd, connfd, port, clientfd;
+    int listenfd, connfd, port;
     socklen_t clientlen;
     struct sockaddr_in clientaddr;
     char client_ip_string[INET_ADDRSTRLEN];
     char client_hostname[MAX_NAME_LEN];
 
-		//port = atoi(argv[1]);
+		if(argc == 1){
+				printf("Usage : %s <port>\n", argv[0]);
+				exit(0);
+		}
 
+		port = atoi(argv[1]);
     clientlen = (socklen_t)sizeof(clientaddr);
 
-    listenfd = Open_listenfd(2122);
+    listenfd = Open_listenfd(port);
     for(int i=0; i<NB_PROC; i++){
         if((p=Fork())==0){
             while (1) {
                 if((connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen))>=0){
+									//On accept la connexion entrnte
 
-										/* determine the name of the client */
-										Getnameinfo((SA *) &clientaddr, clientlen,client_hostname, MAX_NAME_LEN, 0, 0, 0);
-										/* determine the textual representation of the client's IP address */
-										Inet_ntop(AF_INET, &clientaddr.sin_addr, client_ip_string,INET_ADDRSTRLEN);
-										getsockname(connfd, (SA *)&clientaddr,&clientlen);
+                    /* determine the name of the client */
+                    Getnameinfo((SA *) &clientaddr, clientlen,client_hostname, MAX_NAME_LEN, 0, 0, 0);
 
-										printf("%d/n", ntohs(clientaddr.sin_port));
-										req = malloc(sizeof(struct Request));
-										req->cmd = (char*)malloc(sizeof(char)*MAXLINE);
-								    req->filename = (char*)malloc(sizeof(char)*MAXLINE);
-								    req->content = (char*)malloc(sizeof(char)*MAXLINE);
-								    req->host = (char*)malloc(sizeof(char)*MAXLINE);
-										read(connfd, req, sizeof(struct Request));
-										printf("commande : %s\n", req->cmd);
-										Close(connfd);
+                    /* determine the textual representation of the client's IP address */
+                    Inet_ntop(AF_INET, &clientaddr.sin_addr, client_ip_string,INET_ADDRSTRLEN);
 
-										clientfd = open_clientfd(req->host, 3000);
 
-                    readRequest(req);
+                    printf("server connected to %s (%s) %d\n", client_hostname,client_ip_string, getpid());
+                    req = malloc(sizeof(struct Request));
+                    req->connfd = connfd;
+
+										fini=0;
+
+										while(!fini){
+                    	readRequest(req); //On lit la requete du client
+										}
+										//Close(connfd);
                 }
             }
     				freeRequest(req);
@@ -63,15 +66,18 @@ int main(int argc, char **argv)
 
     for(int i=0; i<NB_PROC; i++)
         waitpid(child[i], NULL, 0);
+		//On attend tous les fils
 
     exit(0);
 }
 
 void handler(int sig){
+	//On s'occupe des zombis
     waitpid(-1, NULL, WNOHANG|WUNTRACED);
     return;
 }
 void stop(int sig){
+	//Si on recoit un SIGCTR, on tue tous les fils
     for(int i=0; i<NB_PROC; i++){
         kill(SIGKILL, child[i]);
     }
@@ -81,18 +87,25 @@ void stop(int sig){
 void readRequest(struct Request *req){
 
     size_t n;
+    req->cmd = (char*)malloc(sizeof(char)*MAXLINE);
+    req->filename = (char*)malloc(sizeof(char)*MAXLINE);
+    req->content = (char*)malloc(sizeof(char)*MAXLINE);
+    char* request = (char *)malloc(sizeof(char)*MAXLINE);
     rio_t rio;
     Rio_readinitb(&rio, req->connfd);
+    n=Rio_readlineb(&rio, request, MAXLINE);
     fflush(stdout);
+    request[n-1] = '\0';
 
-
-    printf("%s\n", req->cmd);
+    sscanf(request, "%s %s %s", req->cmd, req->filename, req->content);
+		//On recupere la requte , et remplis notre Request
 		stat(req->filename, &req->sbuf);
     if(!strcmp("get", req->cmd)){
     	get(req);
     }else if (!strcmp("bye", req->cmd) ) {
     	printf("fin de la connexion");
-			//Close(req->connfd);
+			Close(req->connfd);
+			fini=1;
     }
     fflush(stdout);
 }
@@ -102,28 +115,20 @@ void get(struct Request *req){
 	size_t n,err;
 	rio_t rio;
 
-		/*
-		On envoie d'un coup
-		int srcfd;
-    char *srcp;
-
-    srcfd = Open(req->filename, O_RDONLY, 0);
-    srcp = Mmap(0, req->sbuf.st_size, PROT_READ, MAP_PRIVATE, srcfd, 0);
-    Close(srcfd);
-    Rio_writen(req->connfd, srcp, req->sbuf.st_size);
-    Munmap(srcp, req->sbuf.st_size);
-    */
-
-    int fd = open(req->filename, O_RDONLY);
-    Rio_readinitb(&rio, fd);
-		while ((n = Rio_readlineb(&rio, buf, MAXSEND)) > 0) {
-				err = rio_writen(req->connfd, buf, n);
-        printf("%s",buf);
-        if(err == -1){
-	        	fprintf(stderr, "Arret innatendu du client\n");
-	        	break;
-        }
-    }
+	int fd = open(req->filename, O_RDONLY);
+	Rio_readinitb(&rio, fd);
+	/*
+Tant qu'on a ecris, on continue d'ecrire
+	*/
+	while ((n = Rio_readlineb(&rio, buf, MAXSEND)) > 0) {
+			printf("%s", buf);
+			err = rio_writen(req->connfd, buf, n);
+	    if(err == -1){//On stopper si le client s'arrete
+					fini=1;
+		     	fprintf(stderr, "Arret innatendu du client\n");
+		     	break;
+	    }
+	}
 
 }
 

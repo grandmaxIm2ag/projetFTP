@@ -2,12 +2,12 @@ CC=gcc
 CFLAGS=-Wall
 LIBS=-lpthread
 
-all: server client master debugServer rapport
+all: server client master
 
 rapport: rapport.tex
 		pdflatex rapport.tex
-		
-debugServer: server.c server.h csapp.c
+
+debugServer: server.c server.h csapp.c csapp.h
 		$(CC) $(CFLAGS) -g -o debug server.c csapp.c -lpthread
 
 master: master.o csapp.o tell_wait.o

@@ -18,20 +18,22 @@
 \contentsline {chapter}{\numberline {4}Serveur FTP avec \'equilibrage des charges}{11}
 \contentsline {section}{\numberline {4.1}Objectif de la r\'ealisation}{11}
 \contentsline {section}{\numberline {4.2}Code source comment\'e}{11}
-\contentsline {section}{\numberline {4.3}Tests}{11}
-\contentsline {chapter}{\numberline {5}Plusieurs demandes de fichiers par connexions}{12}
-\contentsline {section}{\numberline {5.1}Objectif de la r\'ealisation}{12}
-\contentsline {section}{\numberline {5.2}Code source comment\'e}{12}
-\contentsline {section}{\numberline {5.3}Tests}{12}
-\contentsline {chapter}{\numberline {6}Commandes ps, pwd et cd}{13}
-\contentsline {section}{\numberline {6.1}Objectif de la r\'ealisation}{13}
-\contentsline {section}{\numberline {6.2}Code source comment\'e}{13}
-\contentsline {section}{\numberline {6.3}Tests}{13}
-\contentsline {chapter}{\numberline {7}Commande mkdir, rm, rmm -r et put}{14}
-\contentsline {section}{\numberline {7.1}Objectif de la r\'ealisation}{14}
-\contentsline {section}{\numberline {7.2}Code source comment\'e}{14}
-\contentsline {section}{\numberline {7.3}Tests}{14}
-\contentsline {chapter}{\numberline {8}Autentifcation}{15}
-\contentsline {section}{\numberline {8.1}Objectif de la r\'ealisation}{15}
-\contentsline {section}{\numberline {8.2}Code source comment\'e}{15}
-\contentsline {section}{\numberline {8.3}Tests}{15}
+\contentsline {subsection}{\numberline {4.2.1}master.c}{11}
+\contentsline {subsection}{\numberline {4.2.2}server.c}{12}
+\contentsline {section}{\numberline {4.3}Tests}{12}
+\contentsline {chapter}{\numberline {5}Plusieurs demandes de fichiers par connexions}{13}
+\contentsline {section}{\numberline {5.1}Objectif de la r\'ealisation}{13}
+\contentsline {section}{\numberline {5.2}Code source comment\'e}{13}
+\contentsline {section}{\numberline {5.3}Tests}{13}
+\contentsline {chapter}{\numberline {6}Commandes ps, pwd et cd}{14}
+\contentsline {section}{\numberline {6.1}Objectif de la r\'ealisation}{14}
+\contentsline {section}{\numberline {6.2}Code source comment\'e}{14}
+\contentsline {section}{\numberline {6.3}Tests}{14}
+\contentsline {chapter}{\numberline {7}Commande mkdir, rm, rmm -r et put}{15}
+\contentsline {section}{\numberline {7.1}Objectif de la r\'ealisation}{15}
+\contentsline {section}{\numberline {7.2}Code source comment\'e}{15}
+\contentsline {section}{\numberline {7.3}Tests}{15}
+\contentsline {chapter}{\numberline {8}Autentifcation}{16}
+\contentsline {section}{\numberline {8.1}Objectif de la r\'ealisation}{16}
+\contentsline {section}{\numberline {8.2}Code source comment\'e}{16}
+\contentsline {section}{\numberline {8.3}Tests}{16}
