@@ -8,11 +8,11 @@ rapport: rapport.tex
 		pdflatex rapport.tex
 
 debugServer: server.c server.h csapp.c csapp.h
-		$(CC) $(CFLAGS) -g -o debugS server.c csapp.c -lpthread
+		$(CC) $(CFLAGS) -g -o debug server.c csapp.c -lpthread
 
 
 debugClient: client.c client.h csapp.c csapp.h
-		$(CC) $(CFLAGS) -g -o debugC client.c csapp.c -lpthread
+		$(CC) $(CFLAGS) -g -o debug client.c csapp.c -lpthread
 
 master: master.o csapp.o
 			$(CC) $(CFLAGS) -o master master.o csapp.o  $(LIBS)

@@ -7,10 +7,7 @@ csapp.c
 csapp.h
 csapp.o
 debug
-debugC
-debugS
 Makefile
-Makefile1
 master
 master.c
 master.o
@@ -24,4 +21,3 @@ server.o
 tell_wait.c
 tell_wait.h
 test
-test1
