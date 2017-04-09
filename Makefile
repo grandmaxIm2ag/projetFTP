@@ -36,4 +36,4 @@ csapp.o: csapp.c csapp.h
 		$(CC) $(CFLAGS) -c csapp.c $(LIBS)
 
 clean:
-	rm server client *.o *.aux *.log *.toc
+	rm server client debugC debugS *.o *.aux *.log *.toc

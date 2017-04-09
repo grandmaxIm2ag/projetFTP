@@ -14,7 +14,8 @@ struct Request{
 	struct stat sbuf;
 };
 void get(struct Request *req);
-void readRequest(struct Request *req);
+void put(struct Request *req);
+void readRequest(struct Request *req, int masterReq);
 void handler(int sig);
 void debloque(int sig);
 void stop(int sig);

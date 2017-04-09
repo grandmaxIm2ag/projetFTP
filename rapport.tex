@@ -1,0 +1,968 @@
+\documentclass{report}
+\usepackage[latin1]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[francais]{babel}
+\usepackage{lmodern}
+\usepackage{mathrsfs}
+\usepackage{mathrsfs}
+\usepackage{textcomp}
+\usepackage{listings}
+\usepackage{siunitx}
+\usepackage{tikz}
+
+\usepackage{color}
+
+\definecolor{mygreen}{rgb}{0,0.6,0}
+\definecolor{mygray}{rgb}{0.5,0.5,0.5}
+\definecolor{mymauve}{rgb}{0.58,0,0.82}
+
+\lstset{ %
+  backgroundcolor=\color{white},   % choose the background color; you must add \usepackage{color} or \usepackage{xcolor}; should come as last argument
+  basicstyle=\footnotesize,        % the size of the fonts that are used for the code
+  breakatwhitespace=false,         % sets if automatic breaks should only happen at whitespace
+  breaklines=true,                 % sets automatic line breaking
+  captionpos=b,                    % sets the caption-position to bottom
+  commentstyle=\color{mygreen},    % comment style
+  deletekeywords={...},            % if you want to delete keywords from the given language
+  escapeinside={\%*}{*)},          % if you want to add LaTeX within your code
+  extendedchars=true,              % lets you use non-ASCII characters; for 8-bits encodings only, does not work with UTF-8
+  frame=single,	                   % adds a frame around the code
+  keepspaces=true,                 % keeps spaces in text, useful for keeping indentation of code (possibly needs columns=flexible)
+  keywordstyle=\color{blue},       % keyword style
+  language=C,                      % the language of the code
+  morekeywords={*,...},           % if you want to add more keywords to the set
+  numbers=left,                    % where to put the line-numbers; possible values are (none, left, right)
+  numbersep=5pt,                   % how far the line-numbers are from the code
+  numberstyle=\tiny\color{mygray}, % the style that is used for the line-numbers
+  rulecolor=\color{black},         % if not set, the frame-color may be changed on line-breaks within not-black text (e.g. comments (green here))
+  showspaces=false,                % show spaces everywhere adding particular underscores; it overrides 'showstringspaces'
+  showstringspaces=false,          % underline spaces within strings only
+  showtabs=false,                  % show tabs within strings adding particular underscores
+  stepnumber=2,                    % the step between two line-numbers. If it's 1, each line will be numbered
+  stringstyle=\color{mymauve},     % string literal style
+  tabsize=2,	                   % sets default tabsize to 2 spaces
+  title=\lstname                   % show the filename of files included with \lstinputlisting; also try caption instead of title
+}
+\oddsidemargin=-0,8cm
+\headsep=-1,5cm
+\textwidth 18cm
+\textheight 25,3cm
+
+\newenvironment{introduction}{%
+     \par\noindent\textbf{Remarques}:\noindent
+}{
+     \par\noindent
+}
+
+\author{Grand Maxence, Muller Lucie (Groupe 1) }
+\title{Syst\`emes et R\'eseaux : Impl\'ementation d'un pseudo serveur FTP }
+\date{09/04/2017}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+\chapter*{Introduction}
+%Intro projet
+	Durant ce projet, nous avons du impl\'ementer un serveur de fichier, inspir\'e des serveurs FTP. Nous commenc\'e avec un serveur dot\'e
+  d'une fonction simple : (la r\'ecuperation de fichiers \`a distance), puis nous aons implanter un serveur permettant des actions plus complexes et,
+  de ce fait, plus performant.\\
+  Pour ce faire nous avons cr\'eer une structure Request permettant de r\'ecu\'erer toutes les informations utiles :
+  \begin{lstlisting}
+  struct Request{
+  	char * cmd; //La methode
+  	char * filename; //Le fichier a prendre en commpte
+  	char * content; //informtion supplementaire
+  	int connfd; //descripteur de socket
+  	int fini; //1 si bye envoye, 0 sinon
+  	struct stat sbuf;
+  };
+  \end{lstlisting}
+    \chapter{Serveur FTP concurrent}
+      \section{Objectif de la r\'ealisation}
+	Dans cette partie, nous avons du impl\'ementer la fonction simple du serveur : la r\'ecuperation de fichier \`a distance en donnant le nom du fichier \'a partir du client. Le serveur cr\'e\'e un nouveau fichier sur lequel, \`a l'aide d'un buffer, il copie le contenu du premier fichier. Ce nouveau fichier est sauvegard\'e a l'emplacement courant du client, sous le nom "nomdupremier fichier1"\\
+      \section{Code source comment\'e}
+      \subsection{client.c}
+      \begin{lstlisting}
+int main(int argc, char **argv)
+{
+  int clientfd, fd;
+  char *buf, *host, *hidefile;
+  struct timeval start, end;
+  size_t len=0, n=0;
+
+  if (argc != 2) {
+    fprintf(stderr, "usage: %s <host>\n", argv[0]);
+    exit(0);
+  }
+  host = argv[1];//On recupere le hostname du serveur (127.0.0.1 pour les tests)
+
+  clientfd = Open_clientfd(host, port);//On demande la connexion au serveur
+
+  req = malloc(sizeof(struct Request));//On alloue de la memoire pour la Request
+  req->clientfd = clientfd;//On recupere le descripteur du socket
+
+  Rio_readinitb(&rio, clientfd);//On initialise Rio
+
+  printf("client connected to server %s\n", host);
+
+  while (1) {
+    printf("Tapez votre requete : \n");
+    buf = (char*)malloc(sizeof(char)*MAXLINE);
+    Fgets(buf, MAXLINE, stdin);
+    req->filename = (char*)malloc(sizeof(char)*MAXLINE);
+    req->cmd = (char*)malloc(sizeof(char)*MAXLINE);
+    req->content = (char*)malloc(sizeof(char)*MAXLINE);
+    sscanf(buf, "%s %s %s", req->cmd, req->filename, req->content);//On recupere la requette tapee par le client
+
+    if(!strcmp(req->cmd, "get")){
+      gettimeofday(&start, NULL);
+      Rio_writen(req->clientfd, buf, strlen(buf));//On envoie la requete au serveur
+      fd = open(strcat(req->filename, "1"), O_RDWR | O_CREAT, 0666);//On creer un fichier pour le téléchargement
+      free (buf);
+      buf = (char*)malloc(sizeof(char)*MAXSEND);
+      while((n=Rio_readn(req->clientfd, buf, MAXSEND)) > 0) {//Tant qu'on recoit des donnees, on les ecrit dans le fichier
+        rio_writen(fd, buf, n);
+        len+=n;
+        free(buf);
+        buf = (char*) malloc(sizeof(char)*MAXSEND);
+      }
+      Close(fd);
+      gettimeofday(&end, NULL);
+      double temps = ((end.tv_sec+(double)end.tv_usec/1000000)-(start.tv_sec+(double)start.tv_usec/1000000));
+      printf("%lu bytes received in %f sec (%f bytes / sec) \n",len, temps, ((double)(len/temps)));//On affiche les statistiques
+      if(len == 0){
+        printf("Le téléchargement a echoée\n");
+        remove(req->filename);
+      }
+    }else if(!strcmp(req->cmd, "bye")){//On ferme la connexion
+      Rio_writen(req->clientfd, req->cmd, strlen(req->cmd));
+      printf("fin de la connexion\n");
+      exit(0);
+    }else{//Si la commande est inconnue on ferme la connexion
+      printf("Commande %s inconnue\n", req->cmd);
+      printf("fin de la connexion\n");
+      exit(0);
+    }
+  }
+}
+      \end{lstlisting}
+      \subsection{server.c}
+      \begin{lstlisting}
+      int main(int argc, char **argv)
+      {
+      	Signal(SIGINT, stop);
+      	Signal(SIGCHLD, handler);
+          pid_t p;
+          int listenfd, connfd;
+          socklen_t clientlen;
+          struct sockaddr_in clientaddr;
+          char client_ip_string[INET_ADDRSTRLEN];
+          char client_hostname[MAX_NAME_LEN];
+
+          clientlen = (socklen_t)sizeof(clientaddr);
+
+          listenfd = Open_listenfd(port);
+          for(int i=0; i<NB_PROC; i++){
+              if((p=Fork())==0){
+                  while (1) {
+                      if((connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen))>=0){
+      									//On accept la connexion entrante
+
+                          /* determine the name of the client */
+                          Getnameinfo((SA *) &clientaddr, clientlen,client_hostname, MAX_NAME_LEN, 0, 0, 0);
+
+                          /* determine the textual representation of the client's IP address */
+                          Inet_ntop(AF_INET, &clientaddr.sin_addr, client_ip_string,INET_ADDRSTRLEN);
+
+
+                          printf("server connected to %s (%s) %d\n", client_hostname,client_ip_string, getpid());
+                          req = malloc(sizeof(struct Request));
+                          req->connfd = connfd;
+
+                          readRequest(req);//On lit la requete du client
+      										Close(connfd);
+                      }
+                  }
+          				freeRequest(req);
+                  exit(0);
+              }
+              child[i] = p;
+          }
+
+          for(int i=0; i<NB_PROC; i++)
+              waitpid(child[i], NULL, 0);
+      		//On attend tous les fils
+
+          exit(0);
+      }
+
+      void handler(int sig){
+      	//On s'occupe des zombis
+          waitpid(-1, NULL, WNOHANG|WUNTRACED);
+          return;
+      }
+      void stop(int sig){
+      	//Si on recoit un SIGCTR, on tue tous les fils
+          for(int i=0; i<NB_PROC; i++){
+              kill(SIGKILL, child[i]);
+          }
+          exit(0);
+      }
+
+      void readRequest(struct Request *req){
+
+          size_t n;
+          req->cmd = (char*)malloc(sizeof(char)*MAXLINE);
+          req->filename = (char*)malloc(sizeof(char)*MAXLINE);
+          req->content = (char*)malloc(sizeof(char)*MAXLINE);
+          char* request = (char *)malloc(sizeof(char)*MAXLINE);
+          rio_t rio;
+          Rio_readinitb(&rio, req->connfd);
+          n=Rio_readlineb(&rio, request, MAXLINE);
+          fflush(stdout);
+          request[n-1] = '\0';
+
+          sscanf(request, "%s %s %s", req->cmd, req->filename, req->content);
+      		//On recupere la requte , et remplis notre Request
+      		stat(req->filename, &req->sbuf);
+          if(!strcmp("get", req->cmd)){
+          	get(req);
+          }else if (!strcmp("bye", req->cmd) ) {
+          	printf("fin de la connexion");
+      			Close(req->connfd);
+          }
+          fflush(stdout);
+      }
+
+      void get(struct Request *req){
+      	char buf[MAXSEND];
+      	size_t n,err;
+      	rio_t rio;
+
+
+      		//On envoie d'un coup
+      		int srcfd;
+          char *srcp;
+      		//Rio_readinitb(&rio, fd);
+          srcfd = Open(req->filename, O_RDONLY, 0);
+          srcp = Mmap(0, req->sbuf.st_size, PROT_READ, MAP_PRIVATE, srcfd, 0);
+          Close(srcfd);
+          Rio_writen(req->connfd, srcp, req->sbuf.st_size);
+          Munmap(srcp, req->sbuf.st_size);
+      }
+      \end{lstlisting}
+      \section{Tests}
+\begin{lstlisting}[frame=single,basicstyle=\footnotesize,language=bash]
+maxence@Sybil:~$ cat Makefile
+CC=gcc
+CFLAGS=-Wall
+LIBS=-lpthread
+all: server client
+server: server.o csapp.o tell_wait.o
+$(CC) $(CFLAGS) -o server server.o csapp.o tell_wait.o  $(LIBS)
+
+client: client.o csapp.o
+$(CC) $(CFLAGS) -o client  client.o csapp.o $(LIBS)
+client.o: client.c csapp.c client.h csapp.h
+$(CC) $(CFLAGS) -c client.c csapp.c $(LIBS)
+
+server.o: server.c csapp.c server.h csapp.h
+		$(CC) $(CFLAGS) -c server.c csapp.c $(LIBS)
+tell_wait.o: tell_wait.c csapp.c tell_wait.h csapp.h
+	$(CC) $(CFLAGS) -c tell_wait.c csapp.c $(LIBS)
+
+csapp.o: csapp.c csapp.h
+		$(CC) $(CFLAGS) -c csapp.c $(LIBS)
+clean:
+  	rm server client *.o
+maxence@Sybil:~$ ls
+backupServer  client.c  client.o  csapp.h  Makefile  server    server.h  tell_wait.c  tell_wait.o  test_pipe.c
+client        client.h  csapp.c   csapp.o  master.c  server.c  server.o  tell_wait.h  test
+maxence@Sybil:~$ ./client 127.0.0.1
+client connected to server 127.0.0.1
+Tapez votre requete :
+get Makefile
+617 bytes received in 0.002723 sec (226590.103143 bytes / sec)
+Tapez votre requete :
+bye
+fin de la connexion
+maxence@Sybil:~$ cat Makefile1
+CC=gcc
+CFLAGS=-Wall
+LIBS=-lpthread
+
+all: server client
+
+
+server: server.o csapp.o tell_wait.o
+  $(CC) $(CFLAGS) -o server server.o csapp.o tell_wait.o  $(LIBS)
+client: client.o csapp.o
+	$(CC) $(CFLAGS) -o client  client.o csapp.o $(LIBS)
+
+client.o: client.c csapp.c client.h csapp.h
+	$(CC) $(CFLAGS) -c client.c csapp.c $(LIBS)
+server.o: server.c csapp.c server.h csapp.h
+	$(CC) $(CFLAGS) -c server.c csapp.c $(LIBS)
+
+tell_wait.o: tell_wait.c csapp.c tell_wait.h csapp.h
+	$(CC) $(CFLAGS) -c tell_wait.c csapp.c $(LIBS)
+csapp.o: csapp.c csapp.h
+	$(CC) $(CFLAGS) -c csapp.c $(LIBS)
+
+clean:
+	rm server client *.o
+\end{lstlisting}
+
+    \chapter{D\'ecoupage du fichier}
+      \section{Objectif de la r\'ealisation}
+	Dans cette partie, nous avons du ameliorer le serveur afin de ne pas envoyer le fichier en une seule fois, mais en plusieurs paquets. Cela permet de ne pas surcharger la m\'emoire si un fichier de grande taille est transfer\'e. Pour cela on utilise une boucle qui envoie a chaque fois MAXSEND (maximum d'octets envoy\'es) octets au client.\\
+      \section{Code source comment\'e}
+\subsection{server.c}
+Seul la fonction get de server.c a \'et\'e modifi\'ee
+
+  \begin{lstlisting}
+void get(struct equest *req){
+  	char buf[MAXSEND];
+  	size_t n,err;
+  	rio_t rio;
+
+  	int fd = open(req->filename, O_RDONLY);
+  	Rio_readinitb(&rio, fd);
+  	/*
+  Tant qu'on a ecris, on continue d'ecrire
+  	*/
+  	while ((n = Rio_readlineb(&rio, buf, MAXSEND)) > 0) {
+  			err = rio_writen(req->connfd, buf, n);
+  	    if(err == -1){//On stoppe si le client s'arrete
+  		     	fprintf(stderr, "Arret innatendu du client\n");
+  		     	break;
+  	    }
+  	}
+
+  }
+  \end{lstlisting}
+      \section{Tests}
+\begin{lstlisting}[frame=single,basicstyle=\footnotesize,language=bash]
+maxence@Sybil:~$ cat test
+backupServer
+client
+client.c
+client.h
+client.o
+csapp.c
+csapp.h
+csapp.o
+Makefile
+Makefile1
+master.c
+server
+server.c
+server.h
+server.o
+tell_wait.c
+tell_wait.h
+tell_wait.o
+test
+test_pipe.c
+maxence@Sybil:~$ ./client 127.0.0.1
+client connected to server 127.0.0.1
+Tapez votre requete :
+get test
+186 bytes received in 0.009943 sec (18706.611932 bytes / sec)
+Tapez votre requete :
+bye
+fin de la connexion
+maxence@Sybil:~$ cat test1
+backupServer
+client
+client.c
+client.h
+client.o
+csapp.c
+csapp.h
+csapp.o
+Makefile
+Makefile1
+master.c
+server
+server.c
+server.h
+server.o
+tell_wait.c
+tell_wait.h
+tell_wait.o
+test
+test_pipe.c
+\end{lstlisting}
+    \chapter{Gestion simple des pannes cot\'e client}
+      \section{Objectif de la r\'ealisation}
+	Dans cette partie, nous devons g\`erer les pannes du client, c'est-a-dire le comportement du serveur au cas o\`u le client s'arr\^eterais
+  durant le transfert.
+  Un fichier temporaire est cr\'e\'e au d\'ebut du processus et lorsque ce dernier est termin\'e le fichier est supprim\'e.
+  Il n'est pas supprim\'e si le client s'arr\^ete avant la fin du t\'el\'echargement. Le client v\'erifie, a l'appel du transfert,
+  si un tel fichier temporaire existe. Si c'est le cas cela signifie que le serveur a d\'ej\`a commenc\'e un transfert
+  mais que celui ci a \'etait arr\^et\'e avant sa terminaison.
+  Le client r\'ecup\`ere alors ce fichier temporaire et sait quelle quantit\'e de donn\'ee il lui reste \`a t\'el\'echarger. \\
+      \section{Code source comment\'e}
+      Seul le fichier server.c a \'et\'e modifi\'e
+            \subsection{client.c}
+            \begin{lstlisting}
+if(!strcmp(req->cmd, "get")){
+  gettimeofday(&start, NULL);
+  Rio_writen(req->clientfd, buf, strlen(buf));//On envoie la requete au serveur
+  hidefile = (char*)malloc(sizeof(char)*MAX_NAME_LEN);
+  hidefile[0]='T';
+  strcat(hidefile, req->filename);//On creer le nom du fichier temporaire
+  if(stat(hidefile,&req->sbuf) != 0){//Si le fichier temporaire n'existe pas
+    open(hidefile, O_RDWR | O_CREAT, 0666);//On le cree
+    fd = open(strcat(req->filename, "1"), O_RDWR | O_CREAT, 0666);//On cree un fichier pour le téléchargement
+    free (buf);
+    buf = (char*)malloc(sizeof(char)*MAXSEND);
+    while((n=Rio_readn(req->clientfd, buf, MAXSEND)) > 0) {//Tant qu'on recoit des donnees, on les ecrit dans le fichier
+      rio_writen(fd, buf, n);
+      len+=n;
+      free(buf);
+      buf = (char*) malloc(sizeof(char)*MAXSEND);
+    }
+    Close(fd);
+    gettimeofday(&end, NULL);
+    double temps = ((end.tv_sec+(double)end.tv_usec/1000000)-(start.tv_sec+(double)start.tv_usec/1000000));
+    printf("%lu bytes received in %f sec (%f bytes / sec) \n",len, temps, ((double)(len/temps)));//On affiche les statistiques
+      if(len == 0){
+      printf("Le téléchargement a echoue\n");
+      remove(req->filename);
+    }
+    remove(hidefile);
+  }else{//Si le fichier temporaire existe
+    fd = open(strcat(req->filename, "1"), O_WRONLY);
+    stat(req->filename,&req->sbuf);
+    int dejaLu = req->sbuf.st_size;//On recupere la taille des donnees deja telechargees
+    free (buf);
+    buf = (char*)malloc(sizeof(char)*MAXSEND);
+    while((n=Rio_readn(req->clientfd, buf, MAXSEND)) > 0) {
+      int tmp = dejaLu;
+      dejaLu-=n;
+      if(dejaLu <= 0){//On ecrit si ce sont des donnees non téléchargées
+      rio_writen(fd, buf, n);
+      free(buf);
+      buf = (char*) malloc(sizeof(char)*MAXSEND);
+      len+=n;
+    }else{//Sinon on déplace le curseur
+      if(n<tmp)
+          lseek(fd, n, SEEK_CUR);
+      else
+          lseek(fd, n-tmp, SEEK_CUR);
+      }
+    }
+    gettimeofday(&end, NULL);
+    double temps = ((end.tv_sec+(double)end.tv_usec/1000000)-(start.tv_sec+(double)start.tv_usec/1000000));
+      printf("%lu bytes received in %f sec (%f bytes / sec) \n",len, temps, ((double)(len/temps)));
+      remove(hidefile);
+    }
+  }else if(!strcmp(req->cmd, "bye")){//On ferme la connexion
+    Rio_writen(req->clientfd, req->cmd, strlen(req->cmd));
+    printf("fin de la connexion\n");
+    exit(0);
+  }else{//On stop la connexion
+    printf("Commande %s inconnue\n", req->cmd);
+    printf("fin de la connexion\n");
+    exit(0);
+  }
+}
+            \end{lstlisting}
+      \section{Tests}
+      \begin{lstlisting}[frame=single,basicstyle=\footnotesize,language=bash]
+maxence@Sybil:~$ rm test1
+maxence@Sybil:~$ head -3 test > test1
+maxence@Sybil:~$ touch Ttest
+maxence@Sybil:~$ ./client 127.0.0.1
+client connected to server 127.0.0.1
+Tapez votre requete :
+get test
+186 bytes received in 0.000816 sec (227977.949737 bytes / sec)
+Tapez votre requete :
+bye
+fin de la connexion
+maxence@Sybil:~$ cat test1
+backupServer
+client
+client.c
+client.h
+client.o
+csapp.c
+csapp.h
+csapp.o
+Makefile
+Makefile1
+master.c
+server
+server.c
+server.h
+server.o
+tell_wait.c
+tell_wait.h
+tell_wait.o
+test
+\end{lstlisting}
+
+    \chapter{Serveur FTP avec \'equilibrage des charges}
+      \section{Objectif de la r\'ealisation}
+	Dans cette partie, nous avons ajout\'e un r\'epartisseur de charge. Il sert a partager les differentes requ\^etes des clients entre
+  plusieurs serveurs dit "esclaves". Cette r\'epartition est g\`er\'ee par un serveur "maitre" qui re\c coit toutes les requ\^etes
+  avant de les envoyer aux esclaves. Lorsque le serveur ma\^itre re\c coit une connexion vennant d'un client, il lui ernvoie le port d'un esclave,
+  auquel le client doit se connecter.
+      \section{Code source comment\'e}
+      \subsection{master.c}
+      \begin{lstlisting}
+int sCourant = 0;
+
+int slave[NB_PROC];
+
+int next(){//Renvoie le prochain esclave
+	int p = slave[sCourant];
+	sCourant = ++sCourant % NB_PROC;
+	return p;
+}
+int main(int argc, char **argv)
+{
+  int listenfd, connfd;
+  socklen_t clientlen;
+  struct sockaddr_in clientaddr;
+  char client_ip_string[INET_ADDRSTRLEN];
+  char client_hostname[MAX_NAME_LEN];
+	rio_t rio;
+
+  clientlen = (socklen_t)sizeof(clientaddr);
+
+  listenfd = Open_listenfd(port);
+
+  for(int i =0; i<NB_PROC; i++){
+    slave[i] = port+i+1;
+  }
+  while(1){
+    if((connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen))>=0){
+
+      /* determine the name of the client */
+      Getnameinfo((SA *) &clientaddr, clientlen,client_hostname, MAX_NAME_LEN, 0, 0, 0);
+
+      /* determine the textual representation of the client's IP address */
+      Inet_ntop(AF_INET, &clientaddr.sin_addr, client_ip_string,INET_ADDRSTRLEN);
+
+
+      printf("server connected to %s (%s) %d\n", client_hostname,client_ip_string, getpid());
+
+  		Rio_readinitb(&rio, connfd);
+  		int p = next();
+  		Rio_writen(connfd, &p, sizeof(p));//Envoie au client le numero de port de l'esclve traitant
+
+      Close(connfd);//Ferme la connexion avec le client
+    }
+  }
+  exit(0);
+}
+      \end{lstlisting}
+      \subsection{server.c}
+      \begin{lstlisting}
+clientfd = Open_clientfd(host, port);//On demande la connexion au serveur maitre
+printf("client connected to server %s\n", host);
+
+Rio_readn(clientfd, &port2, sizeof(int)); //On recupert le port du serveur esclave
+
+printf("Vous aller être redirigé vers l'esclave %d\n", port2);
+
+clientfd = Open_clientfd(host, port2);//On demande la connexion au serveur esclave
+
+req = malloc(sizeof(struct Request));//On alloue de la memoire pour la Request
+req->clientfd = clientfd;//On recupere le descripteur du socket
+      \end{lstlisting}
+      \section{Tests}
+\begin{lstlisting}[frame=single,basicstyle=\footnotesize,language=bash]
+maxence@Sybil:~$ ls > test
+maxence@Sybil:~$ ./client 127.0.0.1
+client connected to server 127.0.0.1
+Vous aller être redirigé vers l'esclave 2122
+Tapez votre requete :
+get test
+238 bytes received in 0.004584 sec (51921.582857 bytes / sec)
+Tapez votre requete :
+bye
+fin de la connexion
+maxence@Sybil:~$ cat test
+backupServer
+client
+client.c
+client.h
+client.o
+csapp.c
+csapp.h
+csapp.o
+debug
+Makefile
+master
+master.c
+master.o
+projetFTPBackup
+rapport.pdf
+rapport.tex
+rapport.toc
+server
+server.c
+server.h
+server.o
+tell_wait.c
+tell_wait.h
+tell_wait.o
+test
+\end{lstlisting}
+    \chapter{Plusieurs demandes de fichiers par connexions}
+      \section{Objectif de la r\'ealisation}
+	Dans cette partie, nous avons modifi\'e le serveur afin qu'il g\`ere differentes requ\^etes d'un client sans fermer la connexion
+  entre chacun d'elle. En d'autres termes il peut ainsi les g\`erer les unes apr\'es les autres sans avoir a se reconnecter.
+  La fermeture de connexion se fait via le client avec une commande "bye".
+      \section{Code source comment\'e}
+      \subsection{server.c}
+      Tout d'aboord on rejoute l'option suivante dans la fonction readRequest :
+      \begin{lstlisting}
+}else if (!strcmp("bye", req->cmd) ) {//Si le client envoie bye, on ferme la connexion
+	printf("fin de la connexion\n");
+  	Close(req->connfd);
+  	req->fini=1;
+  }
+      \end{lstlisting}
+      Et pour le main, maintenant on lit les requ\^etes ennvoy\'ees tant que l'on a pas re\c cue bye :
+      \begin{lstlisting}
+while(!req->fini){
+  readRequest(req, 0); //On lit la requete du client
+}
+      \end{lstlisting}
+      \section{Tests}
+\begin{lstlisting}[frame=single,basicstyle=\footnotesize,language=bash]
+maxence@Sybil:~$ ls > test
+maxence@Sybil:~$ ls -l > testt
+maxence@Sybil:~$ ./client 127.0.0.1
+client connected to server 127.0.0.1
+Vous allez être redirigé vers l'esclave 2122
+Tapez votre requete :
+get test
+262 bytes received in 5.005285 sec (52.344671 bytes / sec)
+Tapez votre requete :
+get testt
+1969 bytes received in 5.008208 sec (393.154595 bytes / sec)
+Tapez votre requete :
+bye
+fin de la connexion
+maxence@Sybil:~$ cat test1
+backupServer
+client
+client.c
+client.c1
+client.h
+client.o
+csapp.c
+csapp.h
+csapp.o
+debug
+Makefile
+master
+master.c
+master.o
+projetFTPBackup
+rapport.aux
+rapport.log
+rapport.pdf
+rapport.tex
+rapport.toc
+server
+server.c
+server.h
+server.o
+t
+tell_wait.c
+tell_wait.h
+test
+maxence@Sybil:~$ cat testt1
+total 3456
+-rwx------ 1 maxence maxence   3294 avril  1 11:41 backupServer
+-rwx------ 1 maxence maxence  36488 avril  9 18:29 client
+-rwx------ 1 maxence maxence   7025 avril  9 18:21 client.c
+-rwx------ 1 maxence maxence   7018 avril  9 16:23 client.c1
+-rwx------ 1 maxence maxence    224 avril  4 16:05 client.h
+-rwx------ 1 maxence maxence   9952 avril  9 18:21 client.o
+-rwx------ 1 maxence maxence  20259 mars  29 18:33 csapp.c
+-rwx------ 1 maxence maxence   6105 mars  29 18:33 csapp.h
+-rwx------ 1 maxence maxence  23760 avril  9 18:29 csapp.o
+-rwx------ 1 maxence maxence      0 avril  9 16:45 debug
+-rwx------ 1 maxence maxence    960 avril  9 16:24 Makefile
+-rwx------ 1 maxence maxence  36704 avril  9 18:29 master
+-rwx------ 1 maxence maxence   6867 avril  9 18:27 master.c
+-rwx------ 1 maxence maxence  10136 avril  9 18:29 master.o
+drwx------ 1 maxence maxence 131072 avril  9 18:14 projetFTPBackup
+-rwx------ 1 maxence maxence   4046 avril  9 18:39 rapport.aux
+-rwx------ 1 maxence maxence  44067 avril  9 18:39 rapport.log
+-rwx------ 1 maxence maxence 259857 avril  9 18:39 rapport.pdf
+-rwx------ 1 maxence maxence  22400 avril  9 18:39 rapport.tex
+-rwx------ 1 maxence maxence   2538 avril  9 18:39 rapport.toc
+-rwx------ 1 maxence maxence  36776 avril  9 18:29 server
+-rwx------ 1 maxence maxence   6491 avril  9 18:28 server.c
+-rwx------ 1 maxence maxence    452 avril  9 16:04 server.h
+-rwx------ 1 maxence maxence  10728 avril  9 18:29 server.o
+-rwx------ 1 maxence maxence   1794 févr. 28 09:24 tell_wait.c
+-rwx------ 1 maxence maxence    131 févr. 28 08:55 tell_wait.h
+-rwx------ 1 maxence maxence    262 avril  9 18:42 test
+-rwx------ 1 maxence maxence      0 avril  9 18:42 testt
+\end{lstlisting}
+    \chapter{Commandes ls, pwd et cd}
+      \section{Objectif de la r\'ealisation}
+	Dans cette partie, nous avons ajout\'e les commandes ls (permettant d'afficher le contenu du r\'epertoire courant du serveur FTP),
+  pwd (permettant d'afficher le chemin courant) et cd (permettant de changer le r\'epertoire courant du serveur FTP). Pour les commandes ls et pwd,
+  le serveur cr\'eer un procecus fils qui ex\'ecute la commande \`a l'aide de execvp, et pour cd, nous utilisons la fonction chdir.\\
+      \section{Code source comment\'e}
+      \subsection{server.c}
+\begin{lstlisting}
+if (!strcmp("ls", req->cmd)){
+    char* args[1];
+args[0] = req->cmd;
+int c;
+int fd = open(".log", O_RDWR | O_CREAT, 0666);
+if((c=Fork())==0){
+    close(1);
+    dup(fd);
+    execvp(args[0], args);
+    exit(0);
+}
+close(fd);
+waitpid(c, NULL, 0);
+memcpy(req->filename, ".log", 4);
+stat(req->filename, &req->sbuf);
+int l = req->sbuf.st_size;
+rio_writen(req->connfd, &l, sizeof(int));
+    get(req);
+    remove(".log");
+}else if (!strcmp("pwd", req->cmd)){
+  char* args[1];
+  args[0] = "pwd";
+  int c;
+  int fd = open(".log", O_RDWR | O_CREAT, 0666);
+  if((c=Fork())==0){
+      close(1);
+    dup(fd);
+    execvp(args[0], args);
+    exit(0);
+  }
+  close(fd);
+  waitpid(c, NULL, 0);
+  memcpy(req->filename, ".log", 4);
+  stat(req->filename, &req->sbuf);
+  int l = req->sbuf.st_size;
+  rio_writen(req->connfd, &l, sizeof(int));
+  get(req);
+  remove(".log");
+}else if (!strcmp("cd", req->cmd)){
+    chdir(req->filename);//On se deplace dans req->filename (qui est ici un repertoire et non pas un fichier)
+}
+      \end{lstlisting}
+      \section{Tests}
+      \begin{lstlisting}[frame=single,basicstyle=\footnotesize,language=bash]
+maxence@Sybil:~$ ./client 127.0.0.1
+client connected to server 127.0.0.1
+Vous allez être redirigé vers l'esclave 2122
+Tapez votre requete :
+ls
+backupServer
+client
+client.c
+client.h
+client.o
+csapp.c
+csapp.h
+csapp.o
+debug
+Makefile
+master
+master.c
+master.o
+projetFTPBackup
+rapport.pdf
+rapport.tex
+server
+server.c
+server.h
+server.o
+tell_wait.c
+tell_wait.h
+test
+testt
+
+Tapez votre requete :
+pwd
+/media/maxence/MyLinuxLive1/projetFTP
+Tapez votre requete :
+cd ..
+Tapez votre requete :
+ls
+backup
+cours
+favoris.html
+informatique
+latex
+Papier
+projetFTP
+projetFTPBackup
+Revisions_S5
+Revisions_S6-master
+SAGA MP3
+System Volume Information
+t
+
+Tapez votre requete :
+pwd
+/media/maxence/MyLinuxLive1
+
+Tapez votre requete :
+bye
+fin de la connexion
+
+      \end{lstlisting}
+    \chapter{Autentifcation}
+      \section{Objectif de la r\'ealisation}
+	Dans cette partie, nous avons mis en place un syst\`eme d'authentification afin de prot\'eger les fichiers g\`er\'es par le serveur.
+  Pour cela, nous avons mis en place un mot de passe et un login, faisant \'echouer la connexion au serveur si erron\'ee. Pour ce faire,
+  nous disposons d'un fichier .login dans lequel se trouve \`a chaque ligne : login::password.
+      \section{Code source comment\'e}
+      \subsection{master.c}
+      \begin{lstlisting}
+int auth(char * login){
+    int b=0;
+    char buf[MAXLINE];
+
+  	int fd = open(".login", O_RDONLY);//On ouvre le fichier comportant tous les login::passxord
+  	rio_t rio;
+  	Rio_readinitb(&rio, fd);
+
+  	size_t n =0;
+
+  	while((n = Rio_readlineb(&rio, buf, MAXLINE))>0 && !b){
+  			//On lit chacune des lignes
+		//Si on lit le login envoye par le clientfd
+		//b prend la valeur 1 et on arrete la lecture
+		buf[n-1]='\0';
+  		if(!strcmp(buf, login)){
+  				b=1;
+  				break;
+  		}
+    }
+return b;
+}
+      \end{lstlisting}
+      \section{Tests}
+  \begin{lstlisting}[frame=single,basicstyle=\footnotesize,language=bash]
+  maxence@Sybil:~$ ./client 127.0.0.1
+  client connected to server 127.0.0.1
+  login : erreur
+  Password : erreur
+  L'authentification a echouee
+  maxence@Sybil:~$ ./client 127.0.0.1
+  client connected to server 127.0.0.1
+  login : toto
+  Password : toto
+  Vous allez être redirigé vers l'esclave 2122
+  \end{lstlisting}
+
+  \chapter{Les commandes rm, rm -r, mkdir et put}
+  Nous n'avons pas r\'eussi a implanter cette partie. Nous avons rencontr\'e deux probl\`emes : tout d'abord nous avions un probl\`eme
+  de bufferisation, lorsque nous utilisons une de ses commandes, si nous souhaitons ensuite utiliser la commande ls ou pwd,
+  le serveur garde en m\'emoire le nom du fichier ou repertoire cr\'e\'e ou supprimer, par exemple apr\`es avoir taper : mkdir repTest,
+  lorsque le client tape ls, le serveur cherche \`a ex\'ecuter ls repTest. Nous avons aussi un probl\`eme de communication ma\^itre/esclave. N\'eanmoins,
+  si nous tapons la commande rm, rm -r ou mkdir, le serveur cr\'er/supprime le fihcier/r\'epertoire concern\'e. Et la m\'ethode put, t\'el\'everse le
+  fichier.
+
+  \section{code source comment\'e}
+  \subsection{server.c}
+
+  Nous avons rajout\'e les options dans la fonction readRequest :
+  \begin{lstlisting}
+  else if (!strcmp("put", req->cmd) || !strcmp("rm", req->cmd) || !strcmp("mkdir", req->cmd) ) {
+  //Si c'est une des requetes causant une modification des servers
+    if(!strcmp("rm", req->cmd)){
+      char* args[3];
+      if(!strcmp(req->filename, "-r")){
+          args[0] = "rm";
+          args[1] = "-r";
+          args[2] = req->content;
+      }else{
+          args[0] = "rm";
+          args[1] = req->filename;
+      }
+      int c;
+      if((c=Fork())==0){
+          execvp(args[0], args);
+          exit(0);
+      }
+      waitpid(c, NULL, 0);
+    }if(!strcmp("mkdir", req->cmd)){
+      char* args[2];
+      args[0] = "mkdir";
+      args[1] = req->filename;
+      int c;
+      if((c=Fork())==0){
+          execvp(args[0], args);
+          exit(0);
+      }
+      waitpid(c, NULL, 0);
+
+    }else{
+      put(req);
+    }
+  \end{lstlisting}
+  Et nous avons rejouter une fonction put :
+  \begin{lstlisting}
+  void put(struct Request* r) {
+  		int l; ssize_t n=0;
+  		rio_readn(req->connfd, &l, sizeof(int));
+  		char * buf;
+  		int fd = open(strcat(req->filename, "1"), O_RDWR | O_CREAT, 0666);//On creer un fichier pour le téléchargement
+  		buf = (char*)malloc(sizeof(char)*MAXSEND);
+  		int send=MAXSEND;
+  		if(l<MAXSEND)
+  			send=l;
+  		sleep(5);
+  		while((n=rio_readn(req->connfd,buf, send)) > 0 && l>0) {//Tant qu'on recoit des données, on les ecrit dans le fichier
+  				if (n>send)
+  					n=send;
+  				rio_writen(fd, buf, n);
+  				l-=n;
+  				if(l<MAXSEND)
+  					send=l;
+  		}
+  		close(fd);
+  }
+  \end{lstlisting}
+
+  \subsection{client.c}
+
+  Nous rajoutons les options suivantes pour client.c :
+
+  \begin{lstlisting}
+  else if (!strcmp("put", req->cmd)){
+    //Si c'est une des requetes causant une modification des servers
+    stat(req->filename, &req->sbuf);
+    int l = req->sbuf.st_size;
+    rio_writen(req->clientfd, &l, sizeof(int));
+    int fd = open(req->filename, O_RDONLY);
+    /*
+    Tant qu'on a ecris, on continue d'ecrire
+    */
+    do {
+        n = rio_readn(fd, buf, MAXSEND);
+        rio_writen(req->clientfd, buf, n);
+    }while (n>0);
+
+    close(fd);
+  }else if(!strcmp("cd", req->cmd)){}
+  else if(!strcmp("rm", req->cmd) || !strcmp("mkdir", req->cmd)){}
+  \end{lstlisting}
+
+
+\end{document}

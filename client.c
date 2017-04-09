@@ -24,7 +24,7 @@ int main(int argc, char **argv)
     }
     host = argv[1];//On recupere le hostname du serveur (127.0.0.1 pour les tests)
 
-    clientfd = Open_clientfd(host, port);//On demande la connexion au serveur maitre
+    clientfd = Open_clientfd("127.0.0.1", port);//On demande la connexion au serveur maitre
     printf("client connected to server %s\n", host);
 
 
@@ -34,7 +34,7 @@ int main(int argc, char **argv)
     strcat(login, "::");
     strcat(login, password);
 
-    int e = rio_writen(clientfd, login, MAXLINE);//On tente de se connecer
+    rio_writen(clientfd, login, MAXLINE);//On tente de se connecer
 
     Rio_readn(clientfd, &port2, sizeof(int)); //On recupert le port du serveur esclave
 
@@ -70,7 +70,6 @@ int main(int argc, char **argv)
       if(!strcmp(req->cmd, "get")){
           gettimeofday(&start, NULL);
           rio_readn(req->clientfd, &l, sizeof(int));
-          printf("%d\n",l);
           hidefile = (char*)malloc(sizeof(char)*MAX_NAME_LEN);
           hidefile[0]='.';
           strcat(hidefile, req->filename);//On créer le nom du fichier temporaire
@@ -149,12 +148,27 @@ int main(int argc, char **argv)
             if (n>send)
               n=send;
             fflush(stdout);
-            printf("%s\n", buf);
             l-=n;
             if(l<MAXSEND)
               send=l;
         }
-  		}else if(!strcmp("cd", req->cmd));
+  		}else if (!strcmp("put", req->cmd)){
+  		  //Si c'est une des requetes causant une modification des servers
+        stat(req->filename, &req->sbuf);
+        int l = req->sbuf.st_size;
+        rio_writen(req->clientfd, &l, sizeof(int));
+        int fd = open(req->filename, O_RDONLY);
+        /*
+        Tant qu'on a ecris, on continue d'ecrire
+        */
+        do {
+            n = rio_readn(fd, buf, MAXSEND);
+            rio_writen(req->clientfd, buf, n);
+        }while (n>0);
+
+        close(fd);
+      }else if(!strcmp("cd", req->cmd)){}
+      else if(!strcmp("rm", req->cmd) || !strcmp("mkdir", req->cmd)){}
       else{
           printf("Commande %s inconnue\n", req->cmd);
       }
